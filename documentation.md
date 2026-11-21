@@ -63,6 +63,80 @@ tea.data(data_path, key='ID')
 The value included as the key name (`'ID'` in the example above) should be the name 
 of a *variable* that you define from the dataset.
 
+#### Attaching participant-level history (external covariates):
+
+Real analyses often have two tables: an event-level table (one row per observation,
+with a timestamp) and a participant-level history table (many versions per participant,
+each valid over a time window). Tea can attach the history to the events as of each
+event's time.
+
+Declare three things: the event time column, the time each history record takes effect,
+and — optionally — when it stops being valid. You also declare the participant key and
+how ambiguous cases should be resolved.
+
+```
+events = pd.read_csv("./events.csv")       # pid, event_date, outcome, ...
+history = pd.read_csv("./attributes.csv")  # pid, effective_date, expires_date, group, age
+
+tea.data(events, key='pid')
+tea.define_variables([
+    {'name': 'group', 'data type': 'nominal', 'categories': ['control', 'treatment']},
+    {'name': 'age',   'data type': 'ratio'},
+    {'name': 'outcome', 'data type': 'ratio'},
+])
+tea.define_study_design({
+    'study type': 'experiment',
+    'independent variables': 'group',
+    'dependent variables': 'outcome',
+})
+tea.attach_covariates(history, tea.CovariateJoinSpec(
+    event_time='event_date',
+    effective_time='effective_date',
+    expires_time='expires_date',   # optional; omit for open-ended records
+    participant_key='pid',
+    on_overlap='error',            # 'latest_effective' or 'earliest_effective'
+    on_duplicate='error',          # 'first' or 'last'
+    on_missing='error',            # 'drop_event' or 'allow_na'
+))
+
+results = tea.hypothesize(['group', 'outcome'], ['group:control < treatment'])
+evidence = tea.get_covariate_evidence()
+```
+
+What the join guarantees:
+
+* **One record per event.** Each event is matched to the single history record in
+  force at its event time. An effective time is inclusive; an expiry time is
+  exclusive.
+* **No future backfill.** A record that becomes effective after an event is never
+  used to fill that earlier event. Events before the first version, inside a gap,
+  or with a null timestamp/participant key are *missing*.
+* **No sample-size inflation.** The history is looked up, never merged one-to-many,
+  so the number of events can only stay the same (or shrink under
+  `on_missing='drop_event'`). Event rows keep their order and index.
+* **Explicit ambiguity policies.** Overlapping versions, duplicate
+  `(participant, effective_time)` keys and missing matches each have a policy; the
+  default is to raise rather than guess.
+* **One snapshot.** The variable schema, attribute validation and `hypothesize` all
+  read the same post-join frame. Attached attributes are validated against the
+  declared variables (categories, ranges, numeric types) at join time.
+* **Caller inputs untouched.** Neither the event table nor the history table is
+  modified. Time columns must agree on precision and time zone (or you declare
+  `time_unit=` / `time_zone=` explicitly).
+
+`tea.get_covariate_evidence()` returns an audit trail: how many events matched,
+how many were missing or dropped, which history row each event used, and the
+effective window that was applied. Each joined row also carries
+`__tea_join_matched_row`, `__tea_join_status`,
+`__tea_join_record_effective` and `__tea_join_record_expires` columns.
+
+Only columns named in `define_variables` are schema-checked (and can be used in
+a hypothesis); other attached columns are still joined but reported as
+`undeclared` in the evidence.
+
+If you already hold a `Dataset` object, `dataset.join_covariates(history, spec)`
+performs the same join directly and returns a new sealed `Dataset`.
+
 ### Variables
 Variables correspond to columns given in the dataset. You only need to define variables 
 for the attributes of interest; it's fine to have columns in the dataset that are not

@@ -1,0 +1,182 @@
+Logger was initialized with default configuration.
+Use TeaLogger.initialize_logger to change it.
+
+Running under STRICT mode.
+
+This means that user assertions will be checked. Should they fail, Tea will override user assertions.
+
+
+
+Results:
+--------------
+Test: pointbiserial_corr_a
+***Test assumptions:
+Exactly two variables involved in analysis: group, outcome
+Independent (not paired) observations: group
+Continuous (not categorical) data: outcome
+Groups are normally distributed: group, outcome: NormalTest(W=np.float64(0.9568680766745301), p_value=np.float64(0.4833340409315063))
+Variable is categorical: group
+Variable has two categories: group
+Equal variance: group, outcome
+
+***Test results:
+name = Pointbiserial Correlation
+test_statistic = 0.44130
+p_value = 0.05144
+adjusted_p_value = 0.05144
+alpha = 0.05
+Null hypothesis = There is no association between control and treatment.
+Interpretation = Fail to reject the null hypothesis at alpha = 0.05. There is no association between control and treatment.
+
+Test: students_t
+***Test assumptions:
+Exactly two variables involved in analysis: group, outcome
+Exactly one explanatory variable: group
+Exactly one explained variable: outcome
+Independent (not paired) observations: group
+Variable is categorical: group
+Variable has two categories: group
+Continuous (not categorical) data: outcome
+Equal variance: group, outcome
+Groups are normally distributed: group, outcome: NormalTest(W=np.float64(0.9568680766745301), p_value=np.float64(0.4833340409315063))
+
+***Test results:
+name = Student's T Test
+test_statistic = -10.25012
+p_value = 0.00000
+adjusted_p_value = 0.00000
+alpha = 0.05
+dof = 38
+Effect size:
+Cohen's d = -3.24137
+A12 = 0.00250
+Null hypothesis = There is no difference in means between group = control and group = treatment on outcome.
+Interpretation = t(38) = -10.25012, p = 0.00000. Fail to reject the null hypothesis at alpha = 0.05. There is no difference in means between group = control and group = treatment on outcome.The effect size is Cohen's d = -3.24137, A12 = 0.00250. The effect size is the magnitude of the difference, which gives a holistic view of the results [1].
+[1] Sullivan, G. M., & Feinn, R. (2012). Using effect size—or why the P value is not enough. Journal of graduate medical education, 4(3), 279-282.
+
+Test: welchs_t
+***Test assumptions:
+Exactly two variables involved in analysis: group, outcome
+Exactly one explanatory variable: group
+Exactly one explained variable: outcome
+Independent (not paired) observations: group
+Variable is categorical: group
+Variable has two categories: group
+Continuous (not categorical) data: outcome
+Groups are normally distributed: group, outcome: NormalTest(W=np.float64(0.9568680766745301), p_value=np.float64(0.4833340409315063))
+
+***Test results:
+name = Welch's T Test
+test_statistic = -10.25012
+p_value = 0.00000
+adjusted_p_value = 0.00000
+alpha = 0.05
+dof = 19
+Effect size:
+A12 = 0.00250
+Null hypothesis = There is no difference in means between group = control and group = treatment on outcome.
+Interpretation = t(19) = -10.25012, p = 0.00000. Fail to reject the null hypothesis at alpha = 0.05. There is no difference in means between group = control and group = treatment on outcome.The effect size is A12 = 0.00250. The effect size is the magnitude of the difference, which gives a holistic view of the results [1].
+[1] Sullivan, G. M., & Feinn, R. (2012). Using effect size—or why the P value is not enough. Journal of graduate medical education, 4(3), 279-282.
+
+Test: mannwhitney_u
+***Test assumptions:
+Exactly one explanatory variable: group
+Exactly one explained variable: outcome
+Independent (not paired) observations: group
+Variable is categorical: group
+Variable has two categories: group
+Continuous OR ORDINAL (not nominal) data: outcome
+
+***Test results:
+name = Mann Whitney U Test
+test_statistic = 1.00000
+p_value = 0.00000
+adjusted_p_value = 0.00000
+alpha = 0.05
+dof = 20
+Effect size:
+A12 = 0.00250
+Null hypothesis = There is no difference in medians between group = control and group = treatment on outcome.
+Interpretation = t(20) = 1.00000, p = 0.00000. Fail to reject the null hypothesis at alpha = 0.05. There is no difference in medians between group = control and group = treatment on outcome.The effect size is A12 = 0.00250. The effect size is the magnitude of the difference, which gives a holistic view of the results [1].
+[1] Sullivan, G. M., & Feinn, R. (2012). Using effect size—or why the P value is not enough. Journal of graduate medical education, 4(3), 279-282.
+
+Test: f_test
+***Test assumptions:
+Independent (not paired) observations: group
+Exactly one explanatory variable: group
+Exactly one explained variable: outcome
+Continuous (not categorical) data: outcome
+Variable is categorical: group
+Variable has two or more categories: group
+Groups are normally distributed: group, outcome: NormalTest(W=np.float64(0.9568680766745301), p_value=np.float64(0.4833340409315063))
+Equal variance: group, outcome
+
+***Test results:
+name = F Test
+test_statistic = 105.06502
+p_value = 0.00000
+adjusted_p_value = 0.00000
+alpha = 0.05
+dof = 1.0
+table =             df      sum_sq     mean_sq          F        PR(>F)
+C(group)   1.0  492.165387  492.165387  105.06502  1.710548e-12
+Residual  38.0  178.006769    4.684389        NaN           NaN
+Null hypothesis = The variances of the groups (group = control, treatment) are equal.
+Interpretation = t(1.0) = 105.06502, p = 0.00000. Reject the null hypothesis at alpha = 0.05. The variances of the groups (group = control, treatment) are not equal.
+
+Test: kruskall_wallis
+***Test assumptions:
+Independent (not paired) observations: group
+Exactly one explanatory variable: group
+Exactly one explained variable: outcome
+Continuous (not categorical) data: outcome
+Variable is categorical: group
+Variable has two or more categories: group
+
+***Test results:
+name = Kruskall Wallis
+test_statistic = 28.97634
+p_value = 0.00000
+adjusted_p_value = 0.00000
+alpha = 0.05
+dof = 20
+Null hypothesis = There is no difference in medians between group = control, treatment on outcome.
+Interpretation = t(20) = 28.97634, p = 0.00000. Reject the null hypothesis at alpha = 0.05. There is a difference in medians of outcome for at least one of group = control, treatment.
+
+Test: factorial_ANOVA
+***Test assumptions:
+Exactly one explained variable: outcome
+Continuous (not categorical) data: outcome
+Variable is categorical: group
+Variable has two or more categories: group
+Groups are normally distributed: group, outcome: NormalTest(W=np.float64(0.9568680766745301), p_value=np.float64(0.4833340409315063))
+Equal variance: group, outcome
+
+***Test results:
+name = Factorial ANOVA
+test_statistic = 105.06502
+p_value = 0.00000
+adjusted_p_value = 0.00000
+alpha = 0.05
+dof = 1.0
+table =             df      sum_sq     mean_sq          F        PR(>F)
+C(group)   1.0  492.165387  492.165387  105.06502  1.710548e-12
+Residual  38.0  178.006769    4.684389        NaN           NaN
+Null hypothesis = There is no difference in means between group = control, treatment on outcome.
+Interpretation = t(1.0) = 105.06502, p = 0.00000. Reject the null hypothesis at alpha = 0.05. There is a difference in means of outcome for at least one of group = control, treatment.
+
+Covariate join evidence
+------------------------
+events in: 40
+events out: 40
+matched: 40
+missing: 0 (dropped: 0)
+history rows in: 80
+history rows used: 40
+duplicate rows collapsed: 0
+duplicate conflicts: 0
+overlapping versions resolved: 0
+policies: on_duplicate=error, on_missing=error, on_overlap=latest_effective
+source fingerprint: ff6e31ce01df7047
+result fingerprint: acb818e2557663bf
+attribute validation: age=undeclared, group=ok

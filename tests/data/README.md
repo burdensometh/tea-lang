@@ -53,6 +53,8 @@ Companion datasets downloaded from the [textbook's data repository](https://gith
 | `real_stats_1.csv` | [Real Statistics](http://www.real-statistics.com/non-parametric-tests/wilcoxon-signed-ranks-test/) | Wilcoxon signed-rank test example 1 |
 | `real_stats_2.csv` | [Real Statistics](http://www.real-statistics.com/non-parametric-tests/wilcoxon-signed-ranks-test/wilcoxon-signed-ranks-exact-test/) | Wilcoxon signed-rank exact test example 2 |
 | `real_stats_3.csv` | [Real Statistics](http://www.real-statistics.com/non-parametric-tests/wilcoxon-rank-sum-test/wilcoxon-rank-sum-exact-test/) | Mann-Whitney U exact test example |
+| `covariate_events.csv` | Created for testing | Event-level table (pid, event_date, outcome) for the temporal covariate join example |
+| `covariate_history.csv` | Created for testing | Participant history table (pid, effective/expiry dates, group, age) joined as-of each event |
 
 ## References
 

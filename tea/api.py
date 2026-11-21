@@ -15,13 +15,19 @@ from .build import (load_data, load_data_from_url, const,
 from .vardata_factory import VarDataFactory
 from .hypotheses import _RelationshipSpec
 from .ast import Relate, Relationship, PositiveRelationship, NegativeRelationship
+from .runtimeDataStructures.covariateJoin import (
+    CovariateJoinSpec,
+    JoinEvidence,
+    validate_attribute_schema,
+)
+from .runtimeDataStructures.dataset import Dataset
 import tea.helpers
 import tea.runtimeDataStructures
 import tea.z3_solver
 from tea.helpers.constants.default_values import DEFAULT_ALPHA_PARAMETER
 from tea.z3_solver.solver import set_mode
 
-from typing import Dict
+from typing import Dict, Optional
 from .global_vals import *
 from pathlib import Path
 
@@ -32,6 +38,13 @@ dataset_obj = None
 dataset_id = None
 vars_objs = []
 study_design = None
+
+# External (participant-scoped) covariate history.  Declared with
+# attach_covariates(); consumed by hypothesize() to build the same joined
+# snapshot that variable/attribute validation sees.
+covariate_history = None
+covariate_spec = None
+covariate_evidence = None
 
 # For variables dictionary
 var_name = 'name'
@@ -60,11 +73,57 @@ def download_data(url, file_name):
 # @sets global dataset_path and dataaset_obj (of type Dataset)
 def data(file, key=None):
     global dataset_path, dataset_obj, dataset_id
+    global covariate_history, covariate_spec, covariate_evidence
 
     # Require that the path to the data must be a string or a Path object
     assert isinstance(file, (str, Path, pd.DataFrame))
     dataset_path = file
     dataset_id = key
+
+    # A new dataset invalidates any previously declared covariate history.
+    dataset_obj = None
+    covariate_history = None
+    covariate_spec = None
+    covariate_evidence = None
+
+
+def attach_covariates(history, spec: CovariateJoinSpec):
+    """Declare a participant-scoped history table to join onto the dataset.
+
+    The join happens when ``hypothesize`` runs, so the variable schema,
+    attribute validation and the analysis itself all read the same post-join
+    snapshot.  ``spec`` declares the event-time column, the effective-time
+    column, the optional expiry column, the participant key and the policies
+    for overlaps, duplicates and missing matches; see
+    :class:`tea.runtimeDataStructures.covariateJoin.CovariateJoinSpec`.
+
+    ``history`` may be a DataFrame, a CSV path, or another Dataset.  Attributes
+    it contributes must also be named in ``define_variables``.
+    """
+    global covariate_history, covariate_spec, covariate_evidence
+
+    if not isinstance(spec, CovariateJoinSpec):
+        raise ValueError(
+            "attach_covariates expects a CovariateJoinSpec (declare the event "
+            f"time, effective time and participant key). Received: {type(spec)!r}"
+        )
+    if not isinstance(history, (pd.DataFrame, str, Path, Dataset)):
+        raise ValueError(
+            "history must be a DataFrame, CSV path, or Dataset. "
+            f"Received: {type(history)!r}"
+        )
+
+    covariate_history = history
+    covariate_spec = spec
+    covariate_evidence = None
+
+    # Declaring a new history invalidates any previously built analysis object.
+    dataset_obj = None
+
+
+def get_covariate_evidence() -> Optional[JoinEvidence]:
+    """Return the join audit trail from the most recent hypothesize()."""
+    return covariate_evidence
 
 
 def define_variables(vars: Dict[str, str]):
@@ -174,6 +233,37 @@ def _build_structured_relate(v_objs, predictions):
     return Relate(v_objs, resolved)
 
 
+def _build_analysis_dataset():
+    """Build the single Dataset that schema, validation and tests all consume.
+
+    Without covariate history this is just the loaded data.  With history, the
+    join is performed here once, the attached attributes are validated against
+    the declared variable schema, and the resulting Dataset carries a snapshot
+    tying its data, variables and evidence together.
+    """
+    global dataset_obj, covariate_history, covariate_spec, covariate_evidence
+
+    dataset_obj = load_data(dataset_path, vars_objs, dataset_id)
+    if covariate_history is None or covariate_spec is None:
+        return dataset_obj
+
+    dataset_obj = dataset_obj.join_covariates(
+        covariate_history, covariate_spec, inplace=True
+    )
+    covariate_evidence = dataset_obj.evidence
+
+    if covariate_spec.validate:
+        # Validate the attached attributes against the declared schema, reading
+        # the same post-join frame that hypothesize will analyse.  ``as_of_join``
+        # already did this; re-running it here against the snapshot makes the
+        # coupling explicit and fails loudly if the snapshot were ever stale.
+        attached = list(covariate_evidence.attributes)
+        validate_attribute_schema(dataset_obj.data, vars_objs, attached)
+
+    dataset_obj.assert_snapshot_current()
+    return dataset_obj
+
+
 def hypothesize(vars: list, prediction: list = None):
     global dataset_path, vars_objs, study_design, dataset_obj, dataset_id
     global assumptions, all_results
@@ -189,7 +279,7 @@ def hypothesize(vars: list, prediction: list = None):
     assert (vars_objs)
     assert (study_design)
 
-    dataset_obj = load_data(dataset_path, vars_objs, dataset_id)
+    dataset_obj = _build_analysis_dataset()
 
     v_objs = []
     for v in vars:

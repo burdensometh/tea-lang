@@ -3,8 +3,17 @@ import pandas as pd
 import os
 import csv
 from pathlib import Path
+from typing import Optional
 from urllib.parse import urlparse
 import requests
+
+from tea.runtimeDataStructures.covariateJoin import (
+    AnalysisSnapshot,
+    CovariateJoinSpec,
+    JoinEvidence,
+    as_of_join,
+    make_snapshot,
+)
 
 BASE_PATH = os.getcwd()
 
@@ -16,12 +25,14 @@ def absolute_path(p: str) -> str:
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), p)
 
 @attr.s(hash=True)
-class Dataset(object): 
+class Dataset(object):
     dfile = attr.ib()  # path name
     variables = attr.ib()  # list of Variable objects <-- TODO: may not need this in new implementation....
     pid_col_name = attr.ib()  # name of column in pandas DataFrame that has participant ids
-    row_pids = attr.ib(init=False)  # list of unique participant ids
-    data = attr.ib(init=False)  # pandas DataFrame
+    row_pids = attr.ib(init=False, eq=False)  # list of unique participant ids
+    data = attr.ib(init=False, eq=False)  # pandas DataFrame
+    evidence = attr.ib(init=False, eq=False, repr=False, default=None)  # JoinEvidence or None
+    snapshot = attr.ib(init=False, eq=False, repr=False, default=None)  # AnalysisSnapshot
     
     @staticmethod
     def load(path: str, name):
@@ -68,11 +79,89 @@ class Dataset(object):
         else:
             raise ValueError(f"Dataset expected DataFrame, str, or Path. Received: {self.dfile}")
 
+        self.row_pids = self._compute_row_pids()
+        self.snapshot = make_snapshot(self.data, self.variables)
+
         # if self.pid_col_name:
         #     # Reindex DataFrame indices to be pids
         #     self.data.set_index(self.pid_col_name, inplace=True)
-        # else: 
+        # else:
             # Treat each row as a unique observation
+
+    def _compute_row_pids(self):
+        if self.pid_col_name is not None and self.pid_col_name in self.data.columns:
+            return list(pd.unique(self.data[self.pid_col_name]))
+        return list(self.data.index)
+
+    # -- External temporal covariates ---------------------------------------
+
+    def join_covariates(
+        self,
+        history,
+        spec: CovariateJoinSpec,
+        *,
+        inplace: bool = False,
+    ) -> "Dataset":
+        """Attach participant-scoped history attributes as of each event.
+
+        The analysis rows keep their identity (order and index); every event
+        gets at most one history record, the one in force at its event time.
+        Future records are never used to backfill earlier events, and no
+        one-to-many merge can inflate the sample size.
+
+        ``spec`` declares the event-time column, the effective-time column,
+        the optional expiry column and the participant key, together with the
+        policies for overlapping versions, duplicate keys and missing matches.
+        See :class:`tea.runtimeDataStructures.covariateJoin.CovariateJoinSpec`.
+
+        Returns a new ``Dataset`` (or ``self`` when ``inplace=True``) whose
+        ``data``, ``variables`` schema and ``snapshot`` all describe the same
+        post-join frame.  ``history`` and this dataset's original frame are
+        never mutated.
+
+        New attributes must also be declared via ``define_variables`` before
+        ``hypothesize`` can use them; they are validated against that schema
+        here, at join time.
+        """
+        if isinstance(history, Dataset):
+            history_frame = history.data
+        elif isinstance(history, pd.DataFrame):
+            history_frame = history
+        elif isinstance(history, (str, Path)):
+            history_frame = pd.read_csv(history)
+        else:
+            raise ValueError(
+                "history must be a DataFrame, path, or Dataset. "
+                f"Received: {type(history)!r}"
+            )
+
+        joined, evidence = as_of_join(
+            self.data, history_frame, spec, self.variables
+        )
+        snapshot = make_snapshot(
+            joined, self.variables, is_joined=True, evidence=evidence
+        )
+
+        if inplace:
+            self.data = joined
+            self.evidence = evidence
+            self.snapshot = snapshot
+            self.row_pids = self._compute_row_pids()
+            return self
+
+        result = Dataset(joined, self.variables, self.pid_col_name)
+        result.evidence = evidence
+        result.snapshot = snapshot
+        return result
+
+    @property
+    def join_evidence(self) -> Optional[JoinEvidence]:
+        return self.evidence
+
+    def assert_snapshot_current(self) -> None:
+        """Assert ``data`` still matches the snapshot taken at load/join time."""
+        if self.snapshot is not None:
+            self.snapshot.assert_current()
 
     def __getitem__(self, var_name: str):
         for v in self.variables:  # checks that the Variable is known to the Dataset object

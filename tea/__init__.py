@@ -5,6 +5,15 @@ from tea.api import (
                     assume,
                     hypothesize,
                     download_data,
-                    divine_properties
+                    divine_properties,
+                    attach_covariates,
+                    get_covariate_evidence,
                 )
 from tea.hypotheses import compare, relationship
+from tea.runtimeDataStructures.covariateJoin import (
+                    CovariateJoinSpec,
+                    CovariateJoinError,
+                    OnOverlap,
+                    OnDuplicate,
+                    OnMissing,
+                )
