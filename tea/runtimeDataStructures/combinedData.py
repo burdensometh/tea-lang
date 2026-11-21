@@ -7,11 +7,16 @@ from .value import Value
 # CombinedData is the runtime data structure used to unify experimental design and variable declarations
 @attr.s(init=True)
 class CombinedData(Value):
-    vars = attr.ib(default=[]) # list of VarData objects 
+    vars = attr.ib(default=[]) # list of VarData objects
     study_type = attr.ib(default=observational_identifier)
     # set of characteristics about the groups that are used to determine statistical test
     alpha = attr.ib(type=float, default=DEFAULT_ALPHA_PARAMETER)
     properties = attr.ib(default=dict())
+    # Analysis chain this CombinedData belongs to. Binding here means result
+    # interpretation (e.g. ResultData) follows the session's own data rather
+    # than whatever global state another analysis may have installed.
+    context = attr.ib(default=None, eq=False)
+    session = attr.ib(default=None, eq=False)
     
 
     def _update_vars(self):

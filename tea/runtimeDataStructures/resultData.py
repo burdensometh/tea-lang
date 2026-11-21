@@ -18,7 +18,16 @@ class ResultData(Value):
     def __init__(self, test_to_results, combined_data: CombinedData):
         self.test_to_results = test_to_results
         self.test_to_assumptions = {}
-        ALL_TESTS = all_tests()
+        # Follow the session data chain: use the context that actually
+        # synthesized these tests, falling back to the legacy module-level
+        # registry only when combined_data predates explicit sessions.
+        context = getattr(combined_data, 'context', None)
+        if context is not None:
+            ALL_TESTS = context.all_tests()
+        else:
+            ALL_TESTS = all_tests()
+        # The owning session is assigned by the factory once the result is built.
+        self.session = getattr(combined_data, 'session', None)
         for test in ALL_TESTS:
             if test.name in test_to_results:
                 test_assumptions = []

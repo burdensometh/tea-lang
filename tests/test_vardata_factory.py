@@ -11,6 +11,7 @@ from unittest import mock
 from unittest.mock import Mock
 import pandas as pd
 from tea.vardata_factory import VarDataFactory
+from tea.z3_solver.solver import SolverContext
 from unittest.mock import ANY
 
 
@@ -117,7 +118,7 @@ class VarDataFactoryTests(unittest.TestCase):
         result_data_mock = Mock(spec=ResultData)
         self.study_type_determiner_mock.determine_study_type = create_mocked_study_function(observational_identifier)
 
-        with mock.patch('tea.vardata_factory.synthesize_tests', side_effect=create_synthesize_tests([])), \
+        with mock.patch.object(SolverContext, 'synthesize_tests', side_effect=lambda dataset, assumptions, combined_data: []), \
                 mock.patch('tea.vardata_factory.assign_roles', side_effect=create_assign_roles([mocked_role_1, mocked_role_2])), \
                 mock.patch('tea.vardata_factory.ResultData', side_effect=lambda x, y: result_data_mock),\
                 mock.patch('tea.vardata_factory.execute_test', side_effects=lambda x, y, z, a, b: []),\

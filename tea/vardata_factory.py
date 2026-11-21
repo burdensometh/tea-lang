@@ -11,7 +11,7 @@ from tea.runtimeDataStructures.multivariateData import MultivariateData
 from tea.runtimeDataStructures.resultData import ResultData
 from tea.runtimeDataStructures.combinedData import CombinedData
 from tea.helpers.evaluateHelperMethods import assign_roles, add_paired_property, execute_test
-from tea.z3_solver.solver import synthesize_tests
+from tea.z3_solver.solver import SolverContext
 
 from typing import Optional
 from typing import Dict
@@ -27,36 +27,42 @@ class VarDataFactory:
 
     # TODO: Pass participant_id as part of experimental design, not load_data
 
-    def create_vardata(self, dataset: Dataset, expr: Node, assumptions: Dict[str, str], design: Optional[Dict[str, str]] = None) -> Optional[VarData]:
+    def create_vardata(self, dataset: Dataset, expr: Node, assumptions: Dict[str, str], design: Optional[Dict[str, str]] = None,
+                       context: Optional[SolverContext] = None) -> Optional[VarData]:
+        # Without an explicit context (legacy callers/tests) create a private
+        # context so the run never touches module-global solver state.
+        if context is None:
+            context = SolverContext()
+
         if isinstance(expr, Variable):
-            return self.__create_variable_vardata(dataset, expr)
+            return self.__create_variable_vardata(dataset, expr, context)
 
         elif isinstance(expr, Literal):
-            return self.__create_literal_vardata(dataset, expr)
+            return self.__create_literal_vardata(dataset, expr, context)
 
         elif isinstance(expr, Equal):
-            return self.__create_equal_vardata(dataset, expr, assumptions, design)
+            return self.__create_equal_vardata(dataset, expr, assumptions, design, context)
 
         elif isinstance(expr, NotEqual):
-            return self.__create_not_equal_vardata(dataset, expr, assumptions, design)
+            return self.__create_not_equal_vardata(dataset, expr, assumptions, design, context)
 
         elif isinstance(expr, LessThan):
-            return self.__create_less_than_vardata(dataset, expr, assumptions, design)
+            return self.__create_less_than_vardata(dataset, expr, assumptions, design, context)
 
         elif isinstance(expr, LessThanEqual):
-            return self.__create_less_than_equal_vardata(dataset, expr, assumptions, design)
+            return self.__create_less_than_equal_vardata(dataset, expr, assumptions, design, context)
 
         elif isinstance(expr, GreaterThan):
-            return self.__create_greater_than_vardata(dataset, expr, assumptions, design)
+            return self.__create_greater_than_vardata(dataset, expr, assumptions, design, context)
 
         elif isinstance(expr, GreaterThanEqual):
-            return self.__create_greater_than_equal_vardata(dataset, expr, assumptions, design)
+            return self.__create_greater_than_equal_vardata(dataset, expr, assumptions, design, context)
 
         elif isinstance(expr, Relate):
-            return self.__create_relate_vardata(dataset, expr, assumptions, design)
+            return self.__create_relate_vardata(dataset, expr, assumptions, design, context)
 
         elif isinstance(expr, PositiveRelationship):
-            return self.__create_positive_relationship_vardata(dataset, expr, assumptions, design)
+            return self.__create_positive_relationship_vardata(dataset, expr, assumptions, design, context)
 
         # elif isinstance(expr, Relationship):
         #     import pdb; pdb.set_trace()
@@ -70,7 +76,7 @@ class VarDataFactory:
 
         #     raise Exception('Not implemented Mean')
 
-    def __create_variable_vardata(self, dataset: Dataset, expr: Variable) -> VarData:
+    def __create_variable_vardata(self, dataset: Dataset, expr: Variable, context: SolverContext) -> VarData:
         # dataframe = dataset[expr.name] # I don't know if we want this. We may want to just store query (in metadata?) and
         # then use query to get raw data later....(for user, not interpreter?)
         metadata = dataset.get_variable_data(expr.name)  # (dtype, categories)
@@ -78,20 +84,20 @@ class VarDataFactory:
         #     import pdb; pdb.set_trace()
         metadata['var_name'] = expr.name
         metadata['query'] = ''
-        return VarData(metadata)
+        return VarData(metadata, context=context)
 
-    def __create_literal_vardata(self, dataset: Dataset, expr: Literal) -> VarData:
+    def __create_literal_vardata(self, dataset: Dataset, expr: Literal, context: SolverContext) -> VarData:
         data = pd.Series([expr.value] * len(dataset.data), index=dataset.data.index)  # Series filled with literal value
         # metadata = None # metadata=None means literal
         metadata = dict()  # metadata=None means literal
         metadata['var_name'] = ''  # because not a var in the dataset
         metadata['query'] = ''
         metadata['value'] = expr.value
-        return VarData(metadata, data)
+        return VarData(metadata, data, context=context)
 
-    def __create_equal_vardata(self, dataset: Dataset, expr: Equal, assumptions: Dict[str, str], design: Optional[Dict[str, str]]) -> VarData:
-        lhs = self.create_vardata(dataset, expr.lhs, assumptions, design)
-        rhs = self.create_vardata(dataset, expr.rhs, assumptions, design)
+    def __create_equal_vardata(self, dataset: Dataset, expr: Equal, assumptions: Dict[str, str], design: Optional[Dict[str, str]], context: SolverContext) -> VarData:
+        lhs = self.create_vardata(dataset, expr.lhs, assumptions, design, context)
+        rhs = self.create_vardata(dataset, expr.rhs, assumptions, design, context)
         assert isinstance(lhs, VarData)
         assert isinstance(rhs, VarData)
 
@@ -103,11 +109,11 @@ class VarDataFactory:
         else:
             raise ValueError(f"Not implemented for {rhs}")
 
-        return VarData(metadata)
+        return VarData(metadata, context=context)
 
-    def __create_not_equal_vardata(self, dataset: Dataset, expr: NotEqual, assumptions: Dict[str, str], design: Optional[Dict[str, str]]) -> VarData:
-        rhs = self.create_vardata(dataset, expr.rhs, assumptions, design)
-        lhs = self.create_vardata(dataset, expr.lhs, assumptions, design)
+    def __create_not_equal_vardata(self, dataset: Dataset, expr: NotEqual, assumptions: Dict[str, str], design: Optional[Dict[str, str]], context: SolverContext) -> VarData:
+        rhs = self.create_vardata(dataset, expr.rhs, assumptions, design, context)
+        lhs = self.create_vardata(dataset, expr.lhs, assumptions, design, context)
         assert isinstance(rhs, VarData)
         assert isinstance(lhs, VarData)
 
@@ -118,11 +124,11 @@ class VarDataFactory:
             metadata['query'] = f" != {rhs.metadata['var_name']}"
         else:
             raise ValueError(f"Not implemented for {rhs}")
-        return VarData(metadata)
+        return VarData(metadata, context=context)
 
-    def __create_less_than_vardata(self,  dataset: Dataset, expr: LessThan, assumptions: Dict[str, str], design: Optional[Dict[str, str]]) -> VarData:
-        lhs = self.create_vardata(dataset, expr.lhs, assumptions, design)
-        rhs = self.create_vardata(dataset, expr.rhs, assumptions, design)
+    def __create_less_than_vardata(self,  dataset: Dataset, expr: LessThan, assumptions: Dict[str, str], design: Optional[Dict[str, str]], context: SolverContext) -> VarData:
+        lhs = self.create_vardata(dataset, expr.lhs, assumptions, design, context)
+        rhs = self.create_vardata(dataset, expr.rhs, assumptions, design, context)
         assert isinstance(lhs, VarData)
         assert isinstance(rhs, VarData)
 
@@ -179,11 +185,11 @@ class VarDataFactory:
             metadata['query'] = f" < {rhs.metadata['var_name']}"
         else:
             raise ValueError(f"Not implemented for {rhs}")
-        return VarData(metadata)
+        return VarData(metadata, context=context)
 
-    def __create_less_than_equal_vardata(self,  dataset: Dataset, expr: LessThanEqual, assumptions: Dict[str, str], design: Optional[Dict[str, str]]) -> VarData:
-        lhs = self.create_vardata(dataset, expr.lhs, assumptions, design)
-        rhs = self.create_vardata(dataset, expr.rhs, assumptions, design)
+    def __create_less_than_equal_vardata(self,  dataset: Dataset, expr: LessThanEqual, assumptions: Dict[str, str], design: Optional[Dict[str, str]], context: SolverContext) -> VarData:
+        lhs = self.create_vardata(dataset, expr.lhs, assumptions, design, context)
+        rhs = self.create_vardata(dataset, expr.rhs, assumptions, design, context)
         assert isinstance(lhs, VarData)
         assert isinstance(rhs, VarData)
 
@@ -241,11 +247,11 @@ class VarDataFactory:
         else:
             raise ValueError(f"Not implemented for {rhs}")
 
-        return VarData(metadata)
+        return VarData(metadata, context=context)
 
-    def __create_greater_than_vardata(self,  dataset: Dataset, expr: GreaterThan, assumptions: Dict[str, str], design: Optional[Dict[str, str]]) -> VarData:
-        lhs = self.create_vardata(dataset, expr.lhs, assumptions, design)
-        rhs = self.create_vardata(dataset, expr.rhs, assumptions, design)
+    def __create_greater_than_vardata(self,  dataset: Dataset, expr: GreaterThan, assumptions: Dict[str, str], design: Optional[Dict[str, str]], context: SolverContext) -> VarData:
+        lhs = self.create_vardata(dataset, expr.lhs, assumptions, design, context)
+        rhs = self.create_vardata(dataset, expr.rhs, assumptions, design, context)
         assert isinstance(lhs, VarData)
         assert isinstance(rhs, VarData)
 
@@ -303,11 +309,11 @@ class VarDataFactory:
         else:
             raise ValueError(f"Not implemented for {rhs}")
 
-        return VarData(metadata)
+        return VarData(metadata, context=context)
 
-    def __create_greater_than_equal_vardata(self,  dataset: Dataset, expr: GreaterThanEqual, assumptions: Dict[str, str], design: Optional[Dict[str, str]]) -> VarData:
-        lhs = self.create_vardata(dataset, expr.lhs, assumptions, design)
-        rhs = self.create_vardata(dataset, expr.rhs, assumptions, design)
+    def __create_greater_than_equal_vardata(self,  dataset: Dataset, expr: GreaterThanEqual, assumptions: Dict[str, str], design: Optional[Dict[str, str]], context: SolverContext) -> VarData:
+        lhs = self.create_vardata(dataset, expr.lhs, assumptions, design, context)
+        rhs = self.create_vardata(dataset, expr.rhs, assumptions, design, context)
         assert isinstance(lhs, VarData)
         assert isinstance(rhs, VarData)
 
@@ -363,12 +369,13 @@ class VarDataFactory:
             metadata['query'] = f" >= {rhs.metadata['var_name']}"
         else:
             raise ValueError(f"Not implemented for {rhs}")
-        return VarData(metadata)
+        return VarData(metadata, context=context)
 
-    def __create_relate_vardata(self,  dataset: Dataset, expr: Relate, assumptions: Dict[str, str], design: Optional[Dict[str, str]]) -> VarData:
+    def __create_relate_vardata(self,  dataset: Dataset, expr: Relate, assumptions: Dict[str, str], design: Optional[Dict[str, str]], context: SolverContext) -> VarData:
+        session = context.session
         vars = []
         for v in expr.vars:
-            eval_v = self.create_vardata(dataset, v, design)
+            eval_v = self.create_vardata(dataset, v, assumptions, design, context)
 
             if not eval_v:
                 raise ValueError("The variables you are referencing are not defined as variables in your list of variables.")
@@ -387,16 +394,20 @@ class VarDataFactory:
 
         # Do we have a Bivariate analysis?
         if len(vars) == 2:
-            combined_data = BivariateData(vars, study_type, alpha=assumed_alpha)
+            combined_data = BivariateData(vars, study_type, alpha=assumed_alpha,
+                                          context=context, session=session)
         else:  # Do we have a Multivariate analysis?
-            combined_data = MultivariateData(vars, study_type, alpha=assumed_alpha)
+            combined_data = MultivariateData(vars, study_type, alpha=assumed_alpha,
+                                             context=context, session=session)
 
         # Add paired property
         add_paired_property(dataset, combined_data, study_type, design)  # check sample sizes are identical
 
-        # Infer stats tests (mingled with)
-        tests = synthesize_tests(dataset, assumptions, combined_data)
-        
+        # Infer stats tests along THIS context's data chain. Properties applied
+        # here live only on this context and are discarded when the run ends,
+        # so a failed analysis cannot leak assumptions into later test selection.
+        tests = context.synthesize_tests(dataset, assumptions, combined_data)
+
         # is the dataset empty?
         if dataset.data.empty:
             print("Statistical Tests for empty dataset")
@@ -445,6 +456,10 @@ class VarDataFactory:
             obj.visualize()
 
         res_data = ResultData(results, combined_data)
+        # Bind the result to the session whose data chain produced it. Later
+        # data/definition changes in the session cannot rewrite this object.
+        res_data.context = context
+        res_data.session = session
 
         follow_up = []
 
@@ -452,7 +467,7 @@ class VarDataFactory:
         if expr.predictions and len(expr.predictions) > 1:
             for pred in expr.predictions:
                 # create follow-up expr Node (to self.create_vardata recursively)
-                pred_res = self.create_vardata(dataset, pred, assumptions, design)
+                pred_res = self.create_vardata(dataset, pred, assumptions, design, context)
                 follow_up.append(pred_res)  # add follow-up result to follow_up
 
         res_data.add_follow_up(follow_up)  # add follow-up results to the res_data object
@@ -470,10 +485,10 @@ class VarDataFactory:
         # import pdb; pdb.set_trace()
         return res_data
 
-    def __create_positive_relationship_vardata(self,  dataset: Dataset, expr: PositiveRelationship, assumptions: Dict[str, str], design: Optional[Dict[str, str]]) -> Optional[VarData]:
+    def __create_positive_relationship_vardata(self,  dataset: Dataset, expr: PositiveRelationship, assumptions: Dict[str, str], design: Optional[Dict[str, str]], context: SolverContext) -> Optional[VarData]:
         # get variables
         vars = [expr.lhs.var, expr.rhs.var]
 
         # create a Relate object
         pos_relate_expr = Relate(vars)
-        return self.create_vardata(dataset, pos_relate_expr, assumptions, design)
+        return self.create_vardata(dataset, pos_relate_expr, assumptions, design, context)

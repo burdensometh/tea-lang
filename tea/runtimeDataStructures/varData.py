@@ -12,6 +12,10 @@ class VarData(Value):
     metadata = attr.ib()
     properties = attr.ib(default=dict())
     role = attr.ib(default=None)
+    # The SolverContext/Session whose data chain produced this VarData.
+    # None for VarData built outside an analysis (e.g. literal nodes).
+    context = attr.ib(default=None, eq=False)
+    session = attr.ib(default=None, eq=False)
 
     def is_normal(self, alpha=DEFAULT_ALPHA_PARAMETER):
         global normal_distribution
